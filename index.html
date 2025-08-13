@@ -1,170 +1,28 @@
-  <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lector QR con Permiso de Cámara</title>
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    text-align: center;
-    margin: 0;
-    padding: 20px;
-    background-color: #f5f5f5;
-  }
-  #btnPermisoCam, #btnIniciarQR {
-    background-color: #4CAF50;
-    border: none;
-    color: white;
-    padding: 12px 20px;
-    text-align: center;
-    font-size: 16px;
-    margin: 10px;
-    cursor: pointer;
-    border-radius: 5px;
-  }
-  #btnPermisoCam:hover, #btnIniciarQR:hover {
-    background-color: #45a049;
-  }
-  video {
-    width: 100%;
-    max-width: 400px;
-    margin-top: 15px;
-    border: 2px solid #ccc;
-    border-radius: 8px;
-  }
-</style>
-</head>
-<body>
-
-<h2>📷 Lector QR con Solicitud de Permiso</h2>
-
-<!-- Botón para pedir permiso de cámara -->
-<div>
-  <button id="btnPermisoCam">📷 Habilitar cámara</button>
-</div>
-
-<!-- Botón para iniciar lector QR -->
-<div>
-  <button id="btnIniciarQR" disabled>▶ Iniciar lector QR</button>
-</div>
-
-<!-- Vista de la cámara -->
-<video id="video" autoplay playsinline></video>
-
-<!-- Resultado -->
-<p><strong>Resultado:</strong> <span id="resultado">-</span></p>
-
-<!-- Librería para leer QR -->
-<script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
-
-<script>
-let streamActivo = null;
-let escaneoActivo = false;
-
-async function checkCamPermission() {
-  try {
-    const result = await navigator.permissions.query({ name: 'camera' });
-    if (result.state === "granted") {
-      document.getElementById("btnPermisoCam").style.display = "none";
-      document.getElementById("btnIniciarQR").disabled = false;
-    } else if (result.state === "denied") {
-      alert("⚠️ La cámara está bloqueada. Ve a Ajustes del sitio en tu navegador y habilítala.");
-    }
-  } catch (e) {
-    console.log("No se pudo verificar permisos:", e);
-  }
-}
-
-document.getElementById("btnPermisoCam").addEventListener("click", async () => {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    stream.getTracks().forEach(track => track.stop()); // Cierra cámara
-    alert("✅ Permiso concedido. Ahora puedes iniciar el lector QR.");
-    document.getElementById("btnPermisoCam").style.display = "none";
-    document.getElementById("btnIniciarQR").disabled = false;
-  } catch (err) {
-    alert("❌ No se pudo acceder a la cámara: " + err.message);
-  }
-});
-
-document.getElementById("btnIniciarQR").addEventListener("click", async () => {
-  if (escaneoActivo) {
-    detenerEscaneo();
-    document.getElementById("btnIniciarQR").textContent = "▶ Iniciar lector QR";
-    return;
-  }
-  try {
-    streamActivo = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    const video = document.getElementById("video");
-    video.srcObject = streamActivo;
-    escaneoActivo = true;
-    document.getElementById("btnIniciarQR").textContent = "⏹ Detener lector QR";
-    escanearQR();
-  } catch (err) {
-    alert("❌ Error al iniciar cámara: " + err.message);
-  }
-});
-
-function detenerEscaneo() {
-  if (streamActivo) {
-    streamActivo.getTracks().forEach(track => track.stop());
-    streamActivo = null;
-  }
-  escaneoActivo = false;
-}
-
-function escanearQR() {
-  if (!escaneoActivo) return;
-  const video = document.getElementById("video");
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d");
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  context.drawImage(video, 0, 0, canvas.width, canvas.height);
-  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-  const code = jsQR(imageData.data, canvas.width, canvas.height);
-  if (code) {
-    document.getElementById("resultado").textContent = code.data;
-    detenerEscaneo();
-    document.getElementById("btnIniciarQR").textContent = "▶ Iniciar lector QR";
-  } else {
-    requestAnimationFrame(escanearQR);
-  }
-}
-
-checkCamPermission();
-</script>
-
-</body>
-</html>
-
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Control de Acceso por QR</title>
   <style>
     :root {
-      --ok: #16a34a;       /* verde */
-      --warn: #f59e0b;     /* amarillo */
-      --bad: #dc2626;      /* rojo */
-      --fg: #0f172a;       /* texto */
-      --muted: #64748b;    /* gris */
-      --bg: #f8fafc;       /* fondo */
+      --ok: #16a34a;
+      --warn: #f59e0b;
+      --bad: #dc2626;
+      --fg: #0f172a;
+      --muted: #64748b;
+      --bg: #f8fafc;
       --card: #ffffff;
       --border: #e2e8f0;
     }
-    html, body { height: 100%; background: var(--bg); color: var(--fg); }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--fg); margin: 0; }
+    body { font-family: system-ui, sans-serif; }
     .wrap { max-width: 900px; margin: 0 auto; padding: 16px; }
-    h1 { font-size: 1.25rem; margin: 0 0 12px; }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    h1 { font-size: 1.25rem; margin-bottom: 12px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
     .row { display: grid; gap: 12px; }
     @media (min-width: 720px) { .row { grid-template-columns: 1.3fr .7fr; } }
-
-    /* Controles */
-    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 0; }
-    .controls > * { width: 100%; }
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
     select, input[type="file"], button {
       border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
       font-size: 16px; background: white;
@@ -172,311 +30,200 @@ checkCamPermission();
     button { cursor: pointer; }
     button.primary { background: #0ea5e9; color: white; border: none; }
     button.secondary { background: #f1f5f9; }
-    button:active { transform: translateY(1px); }
-
-    /* Estado */
     .status { margin-top: 10px; border-radius: 12px; padding: 12px; font-weight: 600; }
-    .ok    { background: #dcfce7; color: var(--ok); border: 1px solid #bbf7d0; }
-    .warn  { background: #fef9c3; color: #a16207; border: 1px solid #fde68a; }
-    .bad   { background: #fee2e2; color: var(--bad); border: 1px solid #fecaca; }
+    .ok { background: #dcfce7; color: var(--ok); }
+    .warn { background: #fef9c3; color: #a16207; }
+    .bad { background: #fee2e2; color: var(--bad); }
     .muted { color: var(--muted); font-weight: 500; }
-
-    /* QR */
     #reader { width: 100%; min-height: 320px; border-radius: 12px; overflow: hidden; }
     .hint { font-size: .9rem; color: var(--muted); }
-
-    /* Tabla historial */
     table { width: 100%; border-collapse: collapse; font-size: .95rem; }
     th, td { border-bottom: 1px solid var(--border); padding: 10px 8px; text-align: left; }
-    th { background: #f8fafc; font-weight: 700; position: sticky; top: 0; z-index: 1; }
+    th { background: #f8fafc; position: sticky; top: 0; }
     .tag { font-size: .8rem; padding: 2px 8px; border-radius: 999px; font-weight: 700; display: inline-block; }
-    .tag.ok { background: #dcfce7; color: var(--ok); border: 1px solid #bbf7d0; }
-    .tag.warn { background: #fef9c3; color: #a16207; border: 1px solid #fde68a; }
-    .tag.bad { background: #fee2e2; color: var(--bad); border: 1px solid #fecaca; }
+    .tag.ok { background: #dcfce7; color: var(--ok); }
+    .tag.warn { background: #fef9c3; color: #a16207; }
+    .tag.bad { background: #fee2e2; color: var(--bad); }
     .flex { display:flex; align-items:center; gap:6px; flex-wrap: wrap; }
     .small { font-size: .85rem; color: var(--muted); }
   </style>
-  <!-- Librería lector QR -->
   <script src="https://unpkg.com/html5-qrcode" defer></script>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Control de Acceso por QR</h1>
-    <div class="row">
-      <!-- Columna Izquierda: Lector -->
-      <div class="card">
-        <div class="flex" style="justify-content:space-between;">
-          <div class="small">1) Selecciona cámara • 2) Carga listado • 3) Inicia escaneo</div>
-        </div>
-        <div class="controls">
-          <select id="cameraSelect" title="Cámara"></select>
-          <div class="flex" style="gap:8px;">
-            <button id="btnStart" class="primary">Iniciar</button>
-            <button id="btnStop"  class="secondary">Detener</button>
-          </div>
-          <button id="btnRecargar" class="secondary">Recargar listado.txt</button>
-          <input id="fileTxt" type="file" accept=".txt" />
-        </div>
-
-        <div id="status" class="status muted">Esperando… Carga el listado y presiona “Iniciar”.</div>
-
-        <div id="reader" style="margin-top:10px;"></div>
-        <div class="hint">Consejo: usa la cámara trasera para mejor enfoque.</div>
+<div class="wrap">
+  <h1>Control de Acceso por QR</h1>
+  <div class="row">
+    <div class="card">
+      <div class="flex" style="justify-content:space-between;">
+        <div class="small">1) Permitir cámara • 2) Selecciona cámara • 3) Carga listado • 4) Inicia escaneo</div>
       </div>
 
-      <!-- Columna Derecha: Resumen -->
-      <div class="card">
-        <div class="flex" style="justify-content:space-between; margin-bottom:8px;">
-          <div>
-            <div><strong>Resumen</strong></div>
-            <div class="small" id="resumenInfo">Códigos cargados: 0 • Pasaron: 0</div>
-          </div>
-          <div class="flex">
-            <button id="btnExport" class="secondary">Exportar historial (CSV)</button>
-            <button id="btnReset" class="secondary">Reiniciar “ya pasó”</button>
-          </div>
+      <!-- Botón para habilitar la cámara -->
+      <div style="margin: 10px 0;">
+        <button id="btnPermisoCam" class="primary">📷 Habilitar cámara</button>
+      </div>
+
+      <div class="controls">
+        <select id="cameraSelect" title="Cámara"></select>
+        <div class="flex" style="gap:8px;">
+          <button id="btnStart" class="primary">Iniciar</button>
+          <button id="btnStop" class="secondary">Detener</button>
         </div>
-        <div style="max-height: 360px; overflow: auto; border:1px solid var(--border); border-radius:10px;">
-          <table>
-            <thead>
-              <tr>
-                <th>Hora</th>
-                <th>Código</th>
-                <th>Estado</th>
-                <th>Detalle</th>
-              </tr>
-            </thead>
-            <tbody id="logBody"></tbody>
-          </table>
+        <button id="btnRecargar" class="secondary">Recargar listado.txt</button>
+        <input id="fileTxt" type="file" accept=".txt" />
+      </div>
+
+      <div id="status" class="status muted">Esperando…</div>
+      <div id="reader" style="margin-top:10px;"></div>
+      <div class="hint">Usa la cámara trasera para mejor enfoque.</div>
+    </div>
+
+    <div class="card">
+      <div class="flex" style="justify-content:space-between; margin-bottom:8px;">
+        <div>
+          <div><strong>Resumen</strong></div>
+          <div class="small" id="resumenInfo">Códigos cargados: 0 • Pasaron: 0</div>
         </div>
+        <div class="flex">
+          <button id="btnExport" class="secondary">Exportar CSV</button>
+          <button id="btnReset" class="secondary">Reiniciar</button>
+        </div>
+      </div>
+      <div style="max-height: 360px; overflow: auto; border:1px solid var(--border); border-radius:10px;">
+        <table>
+          <thead><tr><th>Hora</th><th>Código</th><th>Estado</th><th>Detalle</th></tr></thead>
+          <tbody id="logBody"></tbody>
+        </table>
       </div>
     </div>
   </div>
+</div>
 
 <script>
 (function(){
-  // --- Estado en memoria
-  let whitelist = new Set();               // códigos permitidos
-  const PASSES_KEY = "qr_passes";          // { code: "2025-08-13T12:34:56.789Z", ... }
-  let passes = loadPasses();               // historial de primeras pasadas
-  let html5Qr;                             // instancia del lector
-  let scanning = false;
+  let whitelist = new Set();
+  const PASSES_KEY = "qr_passes";
+  let passes = loadPasses();
+  let html5Qr, scanning = false;
 
-  // --- Utilidades
   const el = id => document.getElementById(id);
   const nowIso = () => new Date().toISOString();
-  const formatTime = iso => {
-    const d = iso ? new Date(iso) : new Date();
-    // Hora local en formato HH:MM:SS
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  };
+  const formatTime = iso => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const normalize = s => (s || "").toString().trim();
 
-  function loadPasses(){
-    try { return JSON.parse(localStorage.getItem(PASSES_KEY)) || {}; }
-    catch { return {}; }
-  }
+  function loadPasses(){ try { return JSON.parse(localStorage.getItem(PASSES_KEY)) || {}; } catch { return {}; } }
   function savePasses(){ localStorage.setItem(PASSES_KEY, JSON.stringify(passes)); }
-
-  function setStatus(kind, msg){
-    const box = el("status");
-    box.className = "status " + (kind || "muted");
-    box.textContent = msg;
-  }
-
-  function updateResumen(){
-    el("resumenInfo").textContent = `Códigos cargados: ${whitelist.size} • Pasaron: ${Object.keys(passes).length}`;
-  }
-
+  function setStatus(kind, msg){ const box = el("status"); box.className = "status " + (kind || "muted"); box.textContent = msg; }
+  function updateResumen(){ el("resumenInfo").textContent = `Códigos cargados: ${whitelist.size} • Pasaron: ${Object.keys(passes).length}`; }
   function appendLog({whenIso, code, state, detail}){
     const tr = document.createElement("tr");
-    const tdWhen = document.createElement("td");
-    const tdCode = document.createElement("td");
-    const tdState = document.createElement("td");
-    const tdDetail = document.createElement("td");
-
-    tdWhen.textContent = formatTime(whenIso);
-    tdCode.textContent = code;
-    tdState.innerHTML = `<span class="tag ${state}">${state === "ok" ? "OK" : state === "warn" ? "Repetido" : "No existe"}</span>`;
-    tdDetail.textContent = detail || "";
-
-    // Insertar arriba
+    tr.innerHTML = `<td>${formatTime(whenIso)}</td><td>${code}</td>
+      <td><span class="tag ${state}">${state==="ok"?"OK":state==="warn"?"Repetido":"No existe"}</span></td>
+      <td>${detail||""}</td>`;
     const body = el("logBody");
-    if (body.firstChild) body.insertBefore(tr, body.firstChild);
-    else body.appendChild(tr);
-
-    tr.appendChild(tdWhen); tr.appendChild(tdCode); tr.appendChild(tdState); tr.appendChild(tdDetail);
+    body.insertBefore(tr, body.firstChild);
   }
 
-  // --- Carga de listado.txt (automática y por archivo)
   async function loadListadoTxtAuto(){
     try {
       const res = await fetch("listado.txt", { cache: "no-store" });
-      if (!res.ok) throw new Error("No se pudo cargar listado.txt");
+      if (!res.ok) throw new Error();
       const text = await res.text();
-      parseTxt(text);
-      setStatus("ok", `Listado cargado automáticamente (${whitelist.size} códigos).`);
+      whitelist = new Set(text.split(/\r?\n/).map(l=>normalize(l)).filter(Boolean));
+      setStatus("ok", `Listado cargado (${whitelist.size} códigos).`);
       updateResumen();
-    } catch (e) {
-      setStatus("warn", "No se pudo cargar automáticamente listado.txt. Puedes subirlo manualmente.");
+    } catch {
+      setStatus("warn", "No se pudo cargar listado.txt. Sube el archivo manualmente.");
     }
   }
 
-  function parseTxt(text){
-    whitelist = new Set();
-    text.split(/\r?\n/).forEach(line=>{
-      const code = normalize(line);
-      if (code) whitelist.add(code);
-    });
-  }
-
-  // --- Escaneo y verificación
   async function startScan(){
     if (scanning) return;
     const camId = el("cameraSelect").value;
-    if (!camId) { setStatus("warn", "Selecciona una cámara antes de iniciar."); return; }
-    if (!window.Html5Qrcode) { setStatus("bad", "No cargó la librería de QR. Revisa tu conexión."); return; }
-
+    if (!camId) return setStatus("warn", "Selecciona una cámara.");
     html5Qr = new Html5Qrcode("reader");
-    const config = { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 };
     try {
-      await html5Qr.start(
-        { deviceId: { exact: camId } },
-        config,
-        onScanSuccess,
-        onScanError
-      );
+      await html5Qr.start({ deviceId: { exact: camId } }, { fps: 10, qrbox: 250 }, onScanSuccess);
       scanning = true;
-      setStatus("muted", "Escaneando… apunta el QR al recuadro.");
+      setStatus("muted", "Escaneando…");
     } catch (err) {
-      setStatus("bad", "No se pudo iniciar la cámara: " + err);
-      scanning = false;
+      setStatus("bad", "No se pudo iniciar: " + err);
     }
   }
 
   async function stopScan(){
-    if (html5Qr && scanning) {
-      try { await html5Qr.stop(); } catch {}
-      try { await html5Qr.clear(); } catch {}
-    }
+    if (html5Qr && scanning) { await html5Qr.stop(); await html5Qr.clear(); }
     scanning = false;
     setStatus("muted", "Escaneo detenido.");
   }
 
   function onScanSuccess(decodedText){
     const code = normalize(decodedText);
-    if (!code) return;
-
     const whenIso = nowIso();
-    const firstPassIso = passes[code]; // undefined si nunca pasó
-
-    if (!whitelist.size) {
-      setStatus("warn", "Aún no cargas el listado. Carga listado.txt o súbelo manualmente.");
-      appendLog({ whenIso, code, state: "warn", detail: "Listado no cargado" });
-      return;
-    }
-
+    const firstPassIso = passes[code];
+    if (!whitelist.size) return setStatus("warn", "Carga el listado primero.");
     if (!whitelist.has(code)) {
-      setStatus("bad", "❌ Código NO existe en el listado. Revise bien.");
-      appendLog({ whenIso, code, state: "bad", detail: "No autorizado" });
+      setStatus("bad", "❌ Código NO existe.");
+      appendLog({whenIso, code, state:"bad", detail:"No autorizado"});
       return;
     }
-
     if (!firstPassIso) {
-      passes[code] = whenIso;
-      savePasses();
+      passes[code] = whenIso; savePasses();
       setStatus("ok", `✅ OK, puede pasar. Hora: ${formatTime(whenIso)}`);
-      appendLog({ whenIso, code, state: "ok", detail: "Primera pasada" });
-      updateResumen();
+      appendLog({whenIso, code, state:"ok", detail:"Primera pasada"});
     } else {
-      setStatus("warn", `🟡 Ya pasó a las ${formatTime(firstPassIso)}; reintento a las ${formatTime(whenIso)}.`);
-      appendLog({ whenIso, code, state: "warn", detail: `Primera: ${formatTime(firstPassIso)}` });
+      setStatus("warn", `🟡 Ya pasó a las ${formatTime(firstPassIso)}`);
+      appendLog({whenIso, code, state:"warn", detail:`Primera: ${formatTime(firstPassIso)}`});
     }
+    updateResumen();
   }
 
-  function onScanError(_err){ /* ignoramos lecturas fallidas para no spamear */ }
-
-  // --- Poblado de cámaras
   async function fillCameras(){
-    const sel = el("cameraSelect");
-    sel.innerHTML = "";
-    if (!navigator.mediaDevices?.enumerateDevices) {
-      const opt = document.createElement("option");
-      opt.value = ""; opt.textContent = "Cámaras no disponibles";
-      sel.appendChild(opt);
-      return;
-    }
+    const sel = el("cameraSelect"); sel.innerHTML = "";
     const devices = await navigator.mediaDevices.enumerateDevices();
     const cams = devices.filter(d => d.kind === "videoinput");
-    // Heurística: cámara trasera al inicio si se detecta
-    cams.sort((a,b)=>{
-      const la = (a.label||"").toLowerCase();
-      const lb = (b.label||"").toLowerCase();
-      const ra = /back|trase|rear/.test(la) ? -1 : 0;
-      const rb = /back|trase|rear/.test(lb) ? -1 : 0;
-      return ra - rb;
+    cams.sort((a,b)=>(/back|trase|rear/.test((a.label||"").toLowerCase())?-1:0) - (/back|trase|rear/.test((b.label||"").toLowerCase())?-1:0));
+    cams.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c.deviceId; opt.textContent = c.label || `Cámara ${sel.length+1}`;
+      sel.appendChild(opt);
     });
-
-    for (const c of cams) {
-      const opt = document.createElement("option");
-      opt.value = c.deviceId;
-      opt.textContent = c.label || `Cámara ${sel.length+1}`;
-      sel.appendChild(opt);
-    }
-    if (!cams.length) {
-      const opt = document.createElement("option");
-      opt.value = ""; opt.textContent = "No hay cámaras disponibles";
-      sel.appendChild(opt);
-    }
   }
 
-  // --- Exportar historial a CSV
-  function exportCsv(){
-    const rows = [["Hora","Código","Estado","Detalle"]];
-    const body = el("logBody");
-    for (const tr of Array.from(body.children).reverse()) {
-      const cols = Array.from(tr.children).map(td=>td.textContent);
-      rows.push(cols);
+  // Solicitud de permiso
+  el("btnPermisoCam").addEventListener("click", async ()=>{
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach(track => track.stop());
+      setStatus("ok", "✅ Permiso concedido. Ahora selecciona la cámara y carga el listado.");
+      el("btnPermisoCam").style.display = "none";
+      await fillCameras();
+    } catch (err) {
+      setStatus("bad", "❌ Permiso de cámara denegado.");
     }
-    const csv = rows.map(r => r.map(v => `"${(v||"").replace(/"/g,'""')}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `historial_${new Date().toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url), 2000);
-  }
+  });
 
-  // --- Eventos UI
   el("btnStart").addEventListener("click", startScan);
   el("btnStop").addEventListener("click", stopScan);
   el("btnRecargar").addEventListener("click", loadListadoTxtAuto);
-  el("btnExport").addEventListener("click", exportCsv);
-  el("btnReset").addEventListener("click", ()=>{
-    if (confirm("¿Seguro que quieres reiniciar el registro de 'ya pasó'?")) {
-      passes = {};
-      savePasses();
-      updateResumen();
-      setStatus("muted", "Registro reiniciado. A partir de ahora, todos contarán como primera pasada.");
-    }
+  el("btnExport").addEventListener("click", ()=>{
+    const rows = [["Hora","Código","Estado","Detalle"]];
+    document.querySelectorAll("#logBody tr").forEach(tr=>{
+      rows.push(Array.from(tr.children).map(td=>td.textContent));
+    });
+    const csv = rows.map(r => r.map(v=>`"${v}"`).join(",")).join("\n");
+    const blob = new Blob([csv], {type:"text/csv"}), url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "historial.csv"; a.click();
   });
-
-  el("fileTxt").addEventListener("change", async (ev)=>{
-    const file = ev.target.files?.[0];
-    if (!file) return;
+  el("btnReset").addEventListener("click", ()=>{ passes = {}; savePasses(); updateResumen(); setStatus("muted", "Registro reiniciado."); });
+  el("fileTxt").addEventListener("change", async e=>{
+    const file = e.target.files[0]; if (!file) return;
     const text = await file.text();
-    parseTxt(text);
-    setStatus("ok", `Listado cargado manualmente (${whitelist.size} códigos).`);
-    updateResumen();
+    whitelist = new Set(text.split(/\r?\n/).map(l=>normalize(l)).filter(Boolean));
+    setStatus("ok", `Listado cargado manual (${whitelist.size} códigos).`); updateResumen();
   });
 
-  // --- Inicialización
-  (async function init(){
-    updateResumen();
-    await fillCameras();
-    await loadListadoTxtAuto(); // intenta leer listado.txt de la misma carpeta
-  })();
-
+  (async function init(){ updateResumen(); await loadListadoTxtAuto(); })();
 })();
 </script>
 </body>
