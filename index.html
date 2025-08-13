@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Control de Acceso por QR</title>
+  <style>
+    :root {
+      --ok: #16a34a;       /* verde */
+      --warn: #f59e0b;     /* amarillo */
+      --bad: #dc2626;      /* rojo */
+      --fg: #0f172a;       /* texto */
+      --muted: #64748b;    /* gris */
+      --bg: #f8fafc;       /* fondo */
+      --card: #ffffff;
+      --border: #e2e8f0;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--fg); }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 1.25rem; margin: 0 0 12px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    .row { display: grid; gap: 12px; }
+    @media (min-width: 720px) { .row { grid-template-columns: 1.3fr .7fr; } }
+
+    /* Controles */
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 0; }
+    .controls > * { width: 100%; }
+    select, input[type="file"], button {
+      border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+      font-size: 16px; background: white;
+    }
+    button { cursor: pointer; }
+    button.primary { background: #0ea5e9; color: white; border: none; }
+    button.secondary { background: #f1f5f9; }
+    button:active { transform: translateY(1px); }
+
+    /* Estado */
+    .status { margin-top: 10px; border-radius: 12px; padding: 12px; font-weight: 600; }
+    .ok    { background: #dcfce7; color: var(--ok); border: 1px solid #bbf7d0; }
+    .warn  { background: #fef9c3; color: #a16207; border: 1px solid #fde68a; }
+    .bad   { background: #fee2e2; color: var(--bad); border: 1px solid #fecaca; }
+    .muted { color: var(--muted); font-weight: 500; }
+
+    /* QR */
+    #reader { width: 100%; min-height: 320px; border-radius: 12px; overflow: hidden; }
+    .hint { font-size: .9rem; color: var(--muted); }
+
+    /* Tabla historial */
+    table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+    th, td { border-bottom: 1px solid var(--border); padding: 10px 8px; text-align: left; }
+    th { background: #f8fafc; font-weight: 700; position: sticky; top: 0; z-index: 1; }
+    .tag { font-size: .8rem; padding: 2px 8px; border-radius: 999px; font-weight: 700; display: inline-block; }
+    .tag.ok { background: #dcfce7; color: var(--ok); border: 1px solid #bbf7d0; }
+    .tag.warn { background: #fef9c3; color: #a16207; border: 1px solid #fde68a; }
+    .tag.bad { background: #fee2e2; color: var(--bad); border: 1px solid #fecaca; }
+    .flex { display:flex; align-items:center; gap:6px; flex-wrap: wrap; }
+    .small { font-size: .85rem; color: var(--muted); }
+  </style>
+  <!-- Librería lector QR -->
+  <script src="https://unpkg.com/html5-qrcode" defer></script>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Control de Acceso por QR</h1>
+    <div class="row">
+      <!-- Columna Izquierda: Lector -->
+      <div class="card">
+        <div class="flex" style="justify-content:space-between;">
+          <div class="small">1) Selecciona cámara • 2) Carga listado • 3) Inicia escaneo</div>
+        </div>
+        <div class="controls">
+          <select id="cameraSelect" title="Cámara"></select>
+          <div class="flex" style="gap:8px;">
+            <button id="btnStart" class="primary">Iniciar</button>
+            <button id="btnStop"  class="secondary">Detener</button>
+          </div>
+          <button id="btnRecargar" class="secondary">Recargar listado.txt</button>
+          <input id="fileTxt" type="file" accept=".txt" />
+        </div>
+
+        <div id="status" class="status muted">Esperando… Carga el listado y presiona “Iniciar”.</div>
+
+        <div id="reader" style="margin-top:10px;"></div>
+        <div class="hint">Consejo: usa la cámara trasera para mejor enfoque.</div>
+      </div>
+
+      <!-- Columna Derecha: Resumen -->
+      <div class="card">
+        <div class="flex" style="justify-content:space-between; margin-bottom:8px;">
+          <div>
+            <div><strong>Resumen</strong></div>
+            <div class="small" id="resumenInfo">Códigos cargados: 0 • Pasaron: 0</div>
+          </div>
+          <div class="flex">
+            <button id="btnExport" class="secondary">Exportar historial (CSV)</button>
+            <button id="btnReset" class="secondary">Reiniciar “ya pasó”</button>
+          </div>
+        </div>
+        <div style="max-height: 360px; overflow: auto; border:1px solid var(--border); border-radius:10px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Hora</th>
+                <th>Código</th>
+                <th>Estado</th>
+                <th>Detalle</th>
+              </tr>
+            </thead>
+            <tbody id="logBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // --- Estado en memoria
+  let whitelist = new Set();               // códigos permitidos
+  const PASSES_KEY = "qr_passes";          // { code: "2025-08-13T12:34:56.789Z", ... }
+  let passes = loadPasses();               // historial de primeras pasadas
+  let html5Qr;                             // instancia del lector
+  let scanning = false;
+
+  // --- Utilidades
+  const el = id => document.getElementById(id);
+  const nowIso = () => new Date().toISOString();
+  const formatTime = iso => {
+    const d = iso ? new Date(iso) : new Date();
+    // Hora local en formato HH:MM:SS
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+  const normalize = s => (s || "").toString().trim();
+
+  function loadPasses(){
+    try { return JSON.parse(localStorage.getItem(PASSES_KEY)) || {}; }
+    catch { return {}; }
+  }
+  function savePasses(){ localStorage.setItem(PASSES_KEY, JSON.stringify(passes)); }
+
+  function setStatus(kind, msg){
+    const box = el("status");
+    box.className = "status " + (kind || "muted");
+    box.textContent = msg;
+  }
+
+  function updateResumen(){
+    el("resumenInfo").textContent = `Códigos cargados: ${whitelist.size} • Pasaron: ${Object.keys(passes).length}`;
+  }
+
+  function appendLog({whenIso, code, state, detail}){
+    const tr = document.createElement("tr");
+    const tdWhen = document.createElement("td");
+    const tdCode = document.createElement("td");
+    const tdState = document.createElement("td");
+    const tdDetail = document.createElement("td");
+
+    tdWhen.textContent = formatTime(whenIso);
+    tdCode.textContent = code;
+    tdState.innerHTML = `<span class="tag ${state}">${state === "ok" ? "OK" : state === "warn" ? "Repetido" : "No existe"}</span>`;
+    tdDetail.textContent = detail || "";
+
+    // Insertar arriba
+    const body = el("logBody");
+    if (body.firstChild) body.insertBefore(tr, body.firstChild);
+    else body.appendChild(tr);
+
+    tr.appendChild(tdWhen); tr.appendChild(tdCode); tr.appendChild(tdState); tr.appendChild(tdDetail);
+  }
+
+  // --- Carga de listado.txt (automática y por archivo)
+  async function loadListadoTxtAuto(){
+    try {
+      const res = await fetch("listado.txt", { cache: "no-store" });
+      if (!res.ok) throw new Error("No se pudo cargar listado.txt");
+      const text = await res.text();
+      parseTxt(text);
+      setStatus("ok", `Listado cargado automáticamente (${whitelist.size} códigos).`);
+      updateResumen();
+    } catch (e) {
+      setStatus("warn", "No se pudo cargar automáticamente listado.txt. Puedes subirlo manualmente.");
+    }
+  }
+
+  function parseTxt(text){
+    whitelist = new Set();
+    text.split(/\r?\n/).forEach(line=>{
+      const code = normalize(line);
+      if (code) whitelist.add(code);
+    });
+  }
+
+  // --- Escaneo y verificación
+  async function startScan(){
+    if (scanning) return;
+    const camId = el("cameraSelect").value;
+    if (!camId) { setStatus("warn", "Selecciona una cámara antes de iniciar."); return; }
+    if (!window.Html5Qrcode) { setStatus("bad", "No cargó la librería de QR. Revisa tu conexión."); return; }
+
+    html5Qr = new Html5Qrcode("reader");
+    const config = { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 };
+    try {
+      await html5Qr.start(
+        { deviceId: { exact: camId } },
+        config,
+        onScanSuccess,
+        onScanError
+      );
+      scanning = true;
+      setStatus("muted", "Escaneando… apunta el QR al recuadro.");
+    } catch (err) {
+      setStatus("bad", "No se pudo iniciar la cámara: " + err);
+      scanning = false;
+    }
+  }
+
+  async function stopScan(){
+    if (html5Qr && scanning) {
+      try { await html5Qr.stop(); } catch {}
+      try { await html5Qr.clear(); } catch {}
+    }
+    scanning = false;
+    setStatus("muted", "Escaneo detenido.");
+  }
+
+  function onScanSuccess(decodedText){
+    const code = normalize(decodedText);
+    if (!code) return;
+
+    const whenIso = nowIso();
+    const firstPassIso = passes[code]; // undefined si nunca pasó
+
+    if (!whitelist.size) {
+      setStatus("warn", "Aún no cargas el listado. Carga listado.txt o súbelo manualmente.");
+      appendLog({ whenIso, code, state: "warn", detail: "Listado no cargado" });
+      return;
+    }
+
+    if (!whitelist.has(code)) {
+      setStatus("bad", "❌ Código NO existe en el listado. Revise bien.");
+      appendLog({ whenIso, code, state: "bad", detail: "No autorizado" });
+      return;
+    }
+
+    if (!firstPassIso) {
+      passes[code] = whenIso;
+      savePasses();
+      setStatus("ok", `✅ OK, puede pasar. Hora: ${formatTime(whenIso)}`);
+      appendLog({ whenIso, code, state: "ok", detail: "Primera pasada" });
+      updateResumen();
+    } else {
+      setStatus("warn", `🟡 Ya pasó a las ${formatTime(firstPassIso)}; reintento a las ${formatTime(whenIso)}.`);
+      appendLog({ whenIso, code, state: "warn", detail: `Primera: ${formatTime(firstPassIso)}` });
+    }
+  }
+
+  function onScanError(_err){ /* ignoramos lecturas fallidas para no spamear */ }
+
+  // --- Poblado de cámaras
+  async function fillCameras(){
+    const sel = el("cameraSelect");
+    sel.innerHTML = "";
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      const opt = document.createElement("option");
+      opt.value = ""; opt.textContent = "Cámaras no disponibles";
+      sel.appendChild(opt);
+      return;
+    }
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cams = devices.filter(d => d.kind === "videoinput");
+    // Heurística: cámara trasera al inicio si se detecta
+    cams.sort((a,b)=>{
+      const la = (a.label||"").toLowerCase();
+      const lb = (b.label||"").toLowerCase();
+      const ra = /back|trase|rear/.test(la) ? -1 : 0;
+      const rb = /back|trase|rear/.test(lb) ? -1 : 0;
+      return ra - rb;
+    });
+
+    for (const c of cams) {
+      const opt = document.createElement("option");
+      opt.value = c.deviceId;
+      opt.textContent = c.label || `Cámara ${sel.length+1}`;
+      sel.appendChild(opt);
+    }
+    if (!cams.length) {
+      const opt = document.createElement("option");
+      opt.value = ""; opt.textContent = "No hay cámaras disponibles";
+      sel.appendChild(opt);
+    }
+  }
+
+  // --- Exportar historial a CSV
+  function exportCsv(){
+    const rows = [["Hora","Código","Estado","Detalle"]];
+    const body = el("logBody");
+    for (const tr of Array.from(body.children).reverse()) {
+      const cols = Array.from(tr.children).map(td=>td.textContent);
+      rows.push(cols);
+    }
+    const csv = rows.map(r => r.map(v => `"${(v||"").replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `historial_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  }
+
+  // --- Eventos UI
+  el("btnStart").addEventListener("click", startScan);
+  el("btnStop").addEventListener("click", stopScan);
+  el("btnRecargar").addEventListener("click", loadListadoTxtAuto);
+  el("btnExport").addEventListener("click", exportCsv);
+  el("btnReset").addEventListener("click", ()=>{
+    if (confirm("¿Seguro que quieres reiniciar el registro de 'ya pasó'?")) {
+      passes = {};
+      savePasses();
+      updateResumen();
+      setStatus("muted", "Registro reiniciado. A partir de ahora, todos contarán como primera pasada.");
+    }
+  });
+
+  el("fileTxt").addEventListener("change", async (ev)=>{
+    const file = ev.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    parseTxt(text);
+    setStatus("ok", `Listado cargado manualmente (${whitelist.size} códigos).`);
+    updateResumen();
+  });
+
+  // --- Inicialización
+  (async function init(){
+    updateResumen();
+    await fillCameras();
+    await loadListadoTxtAuto(); // intenta leer listado.txt de la misma carpeta
+  })();
+
+})();
+</script>
+</body>
+</html>
