@@ -158,25 +158,46 @@
   }
 
   function onScanSuccess(decodedText){
-    const code = normalize(decodedText);
-    const whenIso = nowIso();
-    const firstPassIso = passes[code];
-    if (!whitelist.size) return setStatus("warn", "Carga el listado primero.");
-    if (!whitelist.has(code)) {
-      setStatus("bad", "❌ Código NO existe.");
-      appendLog({whenIso, code, state:"bad", detail:"No autorizado"});
-      return;
-    }
-    if (!firstPassIso) {
-      passes[code] = whenIso; savePasses();
-      setStatus("ok", `✅ OK, puede pasar. Hora: ${formatTime(whenIso)}`);
-      appendLog({whenIso, code, state:"ok", detail:"Primera pasada"});
-    } else {
-      setStatus("warn", `🟡 Ya pasó a las ${formatTime(firstPassIso)}`);
-      appendLog({whenIso, code, state:"warn", detail:`Primera: ${formatTime(firstPassIso)}`});
-    }
-    updateResumen();
+let ultimoCodigo = null;
+let ultimaLectura = 0;
+
+function onScanSuccess(decodedText){
+  const ahora = Date.now();
+  const code = normalize(decodedText);
+
+  // Evitar repetir el mismo código dentro de 5 segundos
+  if (code === ultimoCodigo && (ahora - ultimaLectura) < 5000) {
+    return; // ignorar lectura repetida
   }
+  ultimoCodigo = code;
+  ultimaLectura = ahora;
+
+  const whenIso = nowIso();
+  const firstPassIso = passes[code];
+
+  if (!whitelist.size) {
+    setStatus("warn", "Carga el listado primero.");
+    appendLog({ whenIso, code, state: "warn", detail: "Listado no cargado" });
+    return;
+  }
+
+  if (!whitelist.has(code)) {
+    setStatus("bad", "❌ Código NO existe.");
+    appendLog({ whenIso, code, state: "bad", detail: "No autorizado" });
+    return;
+  }
+
+  if (!firstPassIso) {
+    passes[code] = whenIso; savePasses();
+    setStatus("ok", `✅ OK, puede pasar. Hora: ${formatTime(whenIso)}`);
+    appendLog({ whenIso, code, state: "ok", detail: "Primera pasada" });
+  } else {
+    setStatus("warn", `🟡 Ya pasó a las ${formatTime(firstPassIso)}`);
+    appendLog({ whenIso, code, state: "warn", detail: `Primera: ${formatTime(firstPassIso)}` });
+  }
+  updateResumen();
+}
+
 
   async function fillCameras(){
     const sel = el("cameraSelect"); sel.innerHTML = "";
