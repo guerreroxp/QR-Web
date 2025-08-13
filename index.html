@@ -1,5 +1,144 @@
-<!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lector QR con Permiso de Cámara</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin: 0;
+    padding: 20px;
+    background-color: #f5f5f5;
+  }
+  #btnPermisoCam, #btnIniciarQR {
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    padding: 12px 20px;
+    text-align: center;
+    font-size: 16px;
+    margin: 10px;
+    cursor: pointer;
+    border-radius: 5px;
+  }
+  #btnPermisoCam:hover, #btnIniciarQR:hover {
+    background-color: #45a049;
+  }
+  video {
+    width: 100%;
+    max-width: 400px;
+    margin-top: 15px;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+  }
+</style>
+</head>
+<body>
+
+<h2>📷 Lector QR con Solicitud de Permiso</h2>
+
+<!-- Botón para pedir permiso de cámara -->
+<div>
+  <button id="btnPermisoCam">📷 Habilitar cámara</button>
+</div>
+
+<!-- Botón para iniciar lector QR -->
+<div>
+  <button id="btnIniciarQR" disabled>▶ Iniciar lector QR</button>
+</div>
+
+<!-- Vista de la cámara -->
+<video id="video" autoplay playsinline></video>
+
+<!-- Resultado -->
+<p><strong>Resultado:</strong> <span id="resultado">-</span></p>
+
+<!-- Librería para leer QR -->
+<script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
+
+<script>
+let streamActivo = null;
+let escaneoActivo = false;
+
+async function checkCamPermission() {
+  try {
+    const result = await navigator.permissions.query({ name: 'camera' });
+    if (result.state === "granted") {
+      document.getElementById("btnPermisoCam").style.display = "none";
+      document.getElementById("btnIniciarQR").disabled = false;
+    } else if (result.state === "denied") {
+      alert("⚠️ La cámara está bloqueada. Ve a Ajustes del sitio en tu navegador y habilítala.");
+    }
+  } catch (e) {
+    console.log("No se pudo verificar permisos:", e);
+  }
+}
+
+document.getElementById("btnPermisoCam").addEventListener("click", async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    stream.getTracks().forEach(track => track.stop()); // Cierra cámara
+    alert("✅ Permiso concedido. Ahora puedes iniciar el lector QR.");
+    document.getElementById("btnPermisoCam").style.display = "none";
+    document.getElementById("btnIniciarQR").disabled = false;
+  } catch (err) {
+    alert("❌ No se pudo acceder a la cámara: " + err.message);
+  }
+});
+
+document.getElementById("btnIniciarQR").addEventListener("click", async () => {
+  if (escaneoActivo) {
+    detenerEscaneo();
+    document.getElementById("btnIniciarQR").textContent = "▶ Iniciar lector QR";
+    return;
+  }
+  try {
+    streamActivo = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    const video = document.getElementById("video");
+    video.srcObject = streamActivo;
+    escaneoActivo = true;
+    document.getElementById("btnIniciarQR").textContent = "⏹ Detener lector QR";
+    escanearQR();
+  } catch (err) {
+    alert("❌ Error al iniciar cámara: " + err.message);
+  }
+});
+
+function detenerEscaneo() {
+  if (streamActivo) {
+    streamActivo.getTracks().forEach(track => track.stop());
+    streamActivo = null;
+  }
+  escaneoActivo = false;
+}
+
+function escanearQR() {
+  if (!escaneoActivo) return;
+  const video = document.getElementById("video");
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  const code = jsQR(imageData.data, canvas.width, canvas.height);
+  if (code) {
+    document.getElementById("resultado").textContent = code.data;
+    detenerEscaneo();
+    document.getElementById("btnIniciarQR").textContent = "▶ Iniciar lector QR";
+  } else {
+    requestAnimationFrame(escanearQR);
+  }
+}
+
+checkCamPermission();
+</script>
+
+</body>
+</html>
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
