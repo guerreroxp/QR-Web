@@ -22,5 +22,5 @@ La idea es que este proyecto sirva como **plantilla base** para que los alumnos 
 
 ---
 
-## 🗂 Estructura de Archivos
+## 🗂 ##
 
